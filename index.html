@@ -148,26 +148,38 @@ function drawBubbles(rows){
   const cnt=countsByCountry(rows);
   const maxTotal=Math.max(1,...Object.values(cnt));
   const rScale=d3.scaleSqrt().domain([0,maxTotal]).range([17,44]);
-  const bdata=Object.keys(cnt).filter(c=>ANCHORS[c]).map(country=>{
+  // loop over ALL anchored countries, not just those with data
+  const bdata=Object.keys(ANCHORS).map(country=>{
     const facs=rows.filter(d=>d.country===country);
+    const total=facs.length;
     const [x,y]=proj(ANCHORS[country]);
-    return {country,total:cnt[country],parts:originBreakdown(facs),x,y,r:rScale(cnt[country])};
+    return {country,total,parts:originBreakdown(facs),x,y,
+            r: total>0 ? rScale(total) : 13};   // fixed small radius for empty
   });
   const g=gBubble.selectAll("g.bubble").data(bdata,d=>d.country).join(
     enter=>enter.append("g").attr("class","bubble"), u=>u, ex=>ex.remove());
   g.attr("transform",d=>`translate(${d.x},${d.y})`)
    .classed("selb",d=>d.country===sel)
+   .classed("empty",d=>d.total===0)
    .on("mousemove",(ev,d)=>showTip(ev,d))
    .on("mouseleave",()=>tip.style.opacity=0)
-   .on("click",(ev,d)=>setSel(sel===d.country?null:d.country));
+   .on("click",(ev,d)=>{ if(d.total>0) setSel(sel===d.country?null:d.country); });
   g.each(function(d){
     const el=d3.select(this); el.selectAll("*").remove();
-    const arc=d3.arc().innerRadius(d.r*0.52).outerRadius(d.r);
-    el.selectAll("path.seg").data(pie(d.parts)).join("path")
-      .attr("class","seg").attr("d",arc).attr("fill",p=>oc(p.data.origin));
-    el.append("circle").attr("r",d.r*0.5).attr("fill","#fff");
+    if(d.total>0){
+      const arc=d3.arc().innerRadius(d.r*0.52).outerRadius(d.r);
+      el.selectAll("path.seg").data(pie(d.parts)).join("path")
+        .attr("class","seg").attr("d",arc).attr("fill",p=>oc(p.data.origin));
+      el.append("circle").attr("r",d.r*0.5).attr("fill","#fff");
+    } else {
+      // empty country: a hollow grey ring
+      el.append("circle").attr("r",d.r).attr("fill","#fff")
+        .attr("stroke","#cfc7e0").attr("stroke-width",2);
+    }
     el.append("text").attr("class","tot").attr("dy","0.35em")
-      .style("font-size",Math.min(d.r*0.72,22)+"px").text(d.total);
+      .style("font-size",Math.min(d.r*0.72,22)+"px")
+      .style("fill", d.total>0 ? "var(--ink)" : "#b3aac6")
+      .text(d.total);
     el.append("text").attr("class","lbl").attr("y",d.r+13).text(d.country);
   });
 }
